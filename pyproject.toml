@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "daf"
+version = "0.1.0"
+description = ""
+authors = ["Lee Joonhun <jhlee63@outlook.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "~=3.8"
+black = "^22.8.0"
+isort = "^5.10.1"
+torch = { url = "https://download.pytorch.org/whl/cu116/torch-1.13.1%2Bcu116-cp310-cp310-linux_x86_64.whl", platform = "linux" }
+
+[tool.black]
+target-version = ["py310"]
+
+[tool.isort]
+profile = "black"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

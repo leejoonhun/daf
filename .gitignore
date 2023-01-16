@@ -1,0 +1,23 @@
+# Temporary files
+tmp*
+
+# OS-related
+*.deb
+.DS_Store
+*.exe
+desktop.ini
+*:Zone.Identifier
+*.tar
+*.tar.gz
+
+# Python-specific
+.env/
+__pycache__/
+*.py.swp
+poetry.lock
+
+# Jupyter-related
+.ipynb_checkpoints/
+
+# VSCode-related
+.vscode/
