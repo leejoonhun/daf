@@ -34,19 +34,17 @@ def get_dataloaders(
         SyntheticDataset(tgt_train_path, pred_len),
         SyntheticDataset(tgt_valid_path, pred_len),
     )
+    src_path = f"data/{type}_source.pkl"
+    src_dataset = SyntheticDataset(src_path, pred_len)
 
-    src_train_path, src_valid_path = (
-        f"data/{type}_source_train_{pred_len}.pkl",
-        f"data/{type}_source_valid_{pred_len}.pkl",
-    )
-    src_trainset, src_validset = (
-        SyntheticDataset(src_train_path, pred_len),
-        SyntheticDataset(src_valid_path, pred_len),
+    src_batch_size = batch_size * (
+        len(src_dataset) // (len(tgt_trainset) + len(src_dataset))
     )
 
     return (
-        dt.DataLoader(tgt_trainset, batch_size=batch_size, shuffle=True),
+        dt.DataLoader(src_dataset, batch_size=src_batch_size, shuffle=True),
+        dt.DataLoader(
+            tgt_trainset, batch_size=batch_size - src_batch_size, shuffle=True
+        ),
         dt.DataLoader(tgt_validset, batch_size=batch_size, shuffle=False),
-        dt.DataLoader(src_trainset, batch_size=batch_size, shuffle=True),
-        dt.DataLoader(src_validset, batch_size=batch_size, shuffle=False),
     )
