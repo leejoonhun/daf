@@ -11,6 +11,8 @@ black = "^22.8.0"
 isort = "^5.10.1"
 torch = { url = "https://download.pytorch.org/whl/cu116/torch-1.13.1%2Bcu116-cp310-cp310-linux_x86_64.whl", platform = "linux" }
 numpy = "^1.24.1"
+ipykernel = "^6.20.2"
+matplotlib = "^3.6.3"
 
 [tool.black]
 target-version = ["py310"]
