@@ -12,19 +12,26 @@ def train(
     pred_len,
     hidden_dim,
     kernel_size,
-    type,
-    type_param,
+    syn_type,
+    syn_param,
     batch_size,
+    tradeoff,
     num_epoch,
     lr,
-    tradeoff,
 ):
+    print(f"Training with {syn_type}-{syn_param} data")
+    print(
+        f"feat_dim: {feat_dim}, pred_len: {pred_len}, hidden_dim: {hidden_dim}, kernel_size: {kernel_size}"
+    )
+    print(f"batch_size: {batch_size}, num_epoch: {num_epoch}, lr: {lr}")
+    print(f"tradeoff: {tradeoff}")
+
     # configuration
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # data
     src_trainloader, tgt_trainloader, tgt_validloader = get_dataloaders(
-        type=type, type_param=type_param, pred_len=pred_len, batch_size=batch_size
+        syn_type=syn_type, syn_param=syn_param, pred_len=pred_len, batch_size=batch_size
     )
 
     # models
@@ -52,14 +59,17 @@ def train(
 
     # optimizers
     mse, bce = nn.MSELoss(), nn.BCELoss()
+    att_optim = optim.Adam(shared_attn.parameters(), lr=lr)
     gen_optim = optim.Adam(
-        list(shared_attn.parameters())
-        + list(src_generator.parameters())
-        + list(tgt_generator.parameters()),
+        list(src_generator.parameters()) + list(tgt_generator.parameters()),
         lr=lr,
     )
     dis_optim = optim.Adam(discriminator.parameters(), lr=lr)
 
+    # training
+    for model in [shared_attn, src_generator, tgt_generator, discriminator]:
+        model.train()
+        model.to(device)
     for epoch in range(num_epoch):
         train_seq_losses, train_dom_losses, train_tot_losses, train_metrics = (
             [],
@@ -67,12 +77,17 @@ def train(
             [],
             [],
         )
-        for src_batch, tgt_batch in tqdm(zip(src_trainloader, tgt_trainloader)):
-            (src_data, src_true), (tgt_data, tgt_true) = (
-                src_batch.to(device),
-                tgt_batch.to(device),
+        for (src_data, src_true), (tgt_data, tgt_true) in tqdm(
+            zip(src_trainloader, tgt_trainloader)
+        ):
+            src_data, src_true, tgt_data, tgt_true = (
+                src_data.to(device),
+                src_true.to(device),
+                tgt_data.to(device),
+                tgt_true.to(device),
             )
 
+            att_optim.zero_grad()
             gen_optim.zero_grad()
             dis_optim.zero_grad()
 
@@ -114,14 +129,15 @@ def train(
             tot_loss.backward()
             gen_optim.step()
             dis_optim.step()
+            att_optim.step()
 
             # evaluation
             norm_devn = calc_nd(tgt_true, tgt_pred)
             train_metrics.append(norm_devn.item())
 
         valid_metrics = []
-        for tgt_batch in tqdm(tgt_validloader):
-            (tgt_data, tgt_true) = tgt_batch.to(device)
+        for tgt_data, tgt_true in tqdm(tgt_validloader):
+            tgt_data, tgt_true = tgt_data.to(device), tgt_true.to(device)
             tgt_pred = tgt_generator(tgt_data)
             norm_devn = calc_nd(tgt_true, tgt_pred)
             valid_metrics.append(norm_devn.item())
@@ -142,12 +158,12 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--feat_dim", type=int, default=10)
+    parser.add_argument("--feat_dim", type=int, default=1)
     parser.add_argument("--pred_len", type=int, default=18)
     parser.add_argument("--hidden_dim", nargs="+", type=int, default=(64, 64))
     parser.add_argument("--kernel_size", type=int, default=(3, 5))
-    parser.add_argument("--type", type=str, default="coldstart")
-    parser.add_argument("--type_param", type=int, default=36)
+    parser.add_argument("--syn_type", type=str, default="coldstart")
+    parser.add_argument("--syn_param", type=int, default=36)
     parser.add_argument("--batch_size", type=int, default=int(2e3))
     parser.add_argument("--num_epoch", type=int, default=200)
     parser.add_argument("--lr", type=float, default=1e-3)

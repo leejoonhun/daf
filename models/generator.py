@@ -17,7 +17,6 @@ class SequenceGenerator(nn.Module):
         kernel_size: Union[int, Tuple[int, int]],
     ) -> None:
         super().__init__()
-        assert feat_dim % 2 == 0, "Feature dimension must be even"
         self.pred_len = pred_len
 
         self.attn = attn_module
@@ -125,11 +124,13 @@ class Encoder(nn.Module):
     ) -> None:
         super().__init__()
         self.mlp_v = MLPLayer(
-            input_dim=1 + feat_dim, output_dim=feat_dim, hidden_dim=hidden_dim
+            input_dim=feat_dim,
+            output_dim=feat_dim - 1 if feat_dim > 1 else feat_dim,
+            hidden_dim=hidden_dim,
         )
         self.conv_p = ConvLayer(
-            input_dim=1 + feat_dim,
-            output_dim=feat_dim,
+            input_dim=feat_dim,
+            output_dim=feat_dim - 1 if feat_dim > 1 else feat_dim,
             hidden_dim=hidden_dim[0] if isinstance(hidden_dim, tuple) else hidden_dim,
             kernel_size=kernel_size,
         )
