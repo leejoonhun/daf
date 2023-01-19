@@ -23,12 +23,10 @@ class SyntheticDataset(dt.Dataset):
         )
 
 
-def get_dataloaders(
-    type: str, dataparam: int, pred_len: int, batch_size: int = int(2e3)
-):
+def get_dataloaders(type: str, type_param: int, pred_len: int, batch_size: int):
     tgt_train_path, tgt_valid_path = (
-        f"data/{type}_target_train_{dataparam}.pkl",
-        f"data/{type}_target_valid_{dataparam}.pkl",
+        f"data/{type}_target_train_{type_param}.pkl",
+        f"data/{type}_target_valid_{type_param}.pkl",
     )
     tgt_trainset, tgt_validset = (
         SyntheticDataset(tgt_train_path, pred_len),

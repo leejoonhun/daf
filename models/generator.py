@@ -91,7 +91,8 @@ class SharedAttention(nn.Module):
             query (torch.Tensor): queries with shape `(B, D, T)`.
             key (torch.Tensor): keys with shape `(B, D, T)`.
             value (torch.Tensor): values with shape `(B, D, T)`.
-            kernel_size (Union[int, Tuple[int, int]], optional): kernel size used in encoder for extrapolation mode.
+            kernel_size (Union[int, Tuple[int, int]], optional): kernel size used in encoder,
+                required in extrapolation mode.
 
         Returns:
             torch.Tensor: attention values with shape `(B, D, T + 1)`.
@@ -158,9 +159,9 @@ class Decoder(nn.Module):
         """Private Decoder
 
         Args:
-            rep (torch.Tensor): representations with shape `(B, D, T + t)`.
+            rep (torch.Tensor): representations with shape `(B, D, T + i)`, where `i in range(1, t + 1)`.
 
         Returns:
-            torch.Tensor: reconstructed & predicted results with shape `(B, D, T + t)`.
+            torch.Tensor: reconstructed & predicted results with shape `(B, D, T + i)`.
         """
         return self.mlp_z(rep)
