@@ -6,7 +6,7 @@ authors = ["Lee Joonhun <jhlee63@outlook.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "~=3.8"
+python = "^3.10"
 black = "^22.8.0"
 isort = "^5.10.1"
 torch = { url = "https://download.pytorch.org/whl/cu116/torch-1.13.1%2Bcu116-cp310-cp310-linux_x86_64.whl", platform = "linux" }
