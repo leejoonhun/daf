@@ -3,7 +3,7 @@ from typing import Tuple, Union
 import torch
 from torch import nn
 
-from .base import MLPLayer
+from .layers import MLPLayer
 
 
 class DomainDiscriminator(nn.Module):

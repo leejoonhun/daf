@@ -1,13 +1,14 @@
 import torch
 
 
-def calc_nd(true: torch.Tensor, pred: torch.Tensor):
+def calc_nd(true: torch.Tensor, pred: torch.Tensor) -> torch.Tensor:
     """Calculate ND
 
     Args:
         true (torch.Tensor): ground truth with shape `(B, D, t)`.
         pred (torch.Tensor): prediction with shape `(B, D, t)`.
+
+    Returns:
+        torch.Tensor: normalized deviation.
     """
-    numerator = (true - pred).abs().sum()
-    denominator = true.abs().sum()
-    return numerator / denominator
+    return (true - pred).abs().sum() / (true.abs().sum() + 1e-7)

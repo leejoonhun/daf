@@ -4,7 +4,7 @@ from typing import Tuple, Union
 import torch
 from torch import nn
 
-from .base import ConvLayer, MLPLayer
+from .layers import ConvLayer, MLPLayer
 
 
 class SequenceGenerator(nn.Module):
