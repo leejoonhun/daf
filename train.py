@@ -21,62 +21,46 @@ def train(
 ):
     print(f"Training with {syn_type}-{syn_param} data")
     print(
-        f"feat_dim: {feat_dim}, pred_len: {pred_len}, hidden_dim: {hidden_dim}, kernel_size: {kernel_size}"
+        f"  feat_dim: {feat_dim}, pred_len: {pred_len}, hidden_dim: {hidden_dim}, kernel_size: {kernel_size}"
     )
-    print(f"batch_size: {batch_size}, num_epoch: {num_epoch}, lr: {lr}")
-    print(f"tradeoff: {tradeoff}")
+    print(f"  batch_size: {batch_size}, num_epoch: {num_epoch}, lr: {lr}")
+    print(f"  tradeoff: {tradeoff}\n")
 
     # configuration
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # data
     src_trainloader, tgt_trainloader, tgt_validloader = get_dataloaders(
-        syn_type=syn_type, syn_param=syn_param, pred_len=pred_len, batch_size=batch_size
+        syn_type, syn_param, feat_dim, pred_len, batch_size
     )
 
     # models
-    shared_attn = SharedAttention(
-        feat_dim=feat_dim, hidden_dim=hidden_dim, kernel_size=kernel_size
-    )
+    shr_attention = SharedAttention(feat_dim, hidden_dim, kernel_size)
 
     src_generator, tgt_generator = (
-        SequenceGenerator(
-            feat_dim=feat_dim,
-            pred_len=pred_len,
-            attn_module=shared_attn,
-            hidden_dim=hidden_dim,
-            kernel_size=kernel_size,
-        ),
-        SequenceGenerator(
-            feat_dim=feat_dim,
-            pred_len=pred_len,
-            attn_module=shared_attn,
-            hidden_dim=hidden_dim,
-            kernel_size=kernel_size,
-        ),
+        SequenceGenerator(feat_dim, pred_len, shr_attention, hidden_dim, kernel_size),
+        SequenceGenerator(feat_dim, pred_len, shr_attention, hidden_dim, kernel_size),
     )
-    discriminator = DomainDiscriminator(feat_dim=feat_dim, hidden_dim=hidden_dim)
+    dom_discriminator = DomainDiscriminator(feat_dim, hidden_dim)
 
     # optimizers
     mse, bce = nn.MSELoss(), nn.BCELoss()
-    att_optim = optim.Adam(shared_attn.parameters(), lr=lr)
+    att_optim = optim.Adam(shr_attention.parameters(), lr=lr)
     gen_optim = optim.Adam(
-        list(src_generator.parameters()) + list(tgt_generator.parameters()),
+        list(src_generator.enc.parameters())
+        + list(src_generator.dec.parameters())
+        + list(tgt_generator.enc.parameters())
+        + list(tgt_generator.dec.parameters()),
         lr=lr,
     )
-    dis_optim = optim.Adam(discriminator.parameters(), lr=lr)
+    dis_optim = optim.Adam(dom_discriminator.parameters(), lr=lr)
 
     # training
-    for model in [shared_attn, src_generator, tgt_generator, discriminator]:
+    for model in [shr_attention, src_generator, tgt_generator, dom_discriminator]:
         model.train()
         model.to(device)
     for epoch in range(num_epoch):
-        train_seq_losses, train_dom_losses, train_tot_losses, train_metrics = (
-            [],
-            [],
-            [],
-            [],
-        )
+        train_seq_losses, train_dom_losses, train_tot_losses = [], [], []
         for (src_data, src_true), (tgt_data, tgt_true) in tqdm(
             zip(src_trainloader, tgt_trainloader)
         ):
@@ -87,39 +71,35 @@ def train(
                 tgt_true.to(device),
             )
 
-            att_optim.zero_grad()
             gen_optim.zero_grad()
             dis_optim.zero_grad()
+            att_optim.zero_grad()
 
             # reconstruction & prediction
-            src_pred = src_generator(src_data)
-            tgt_pred = tgt_generator(tgt_data)
+            src_pred, (src_query, src_key) = src_generator(src_data)
+            tgt_pred, (tgt_query, tgt_key) = tgt_generator(tgt_data)
 
             # domain classification
-            src_cls_q, src_cls_k = discriminator(src_pred)
-            tgt_cls_q, tgt_cls_k = discriminator(tgt_pred)
+            src_cls_q, src_cls_k = dom_discriminator(src_query, src_key)
+            tgt_cls_q, tgt_cls_k = dom_discriminator(tgt_query, tgt_key)
 
             # loss calculation
-            ## estimation error
-            src_seq_loss = (
-                mse(src_data, src_pred[:-pred_len]).mean()
-                + mse(src_true, src_pred[-pred_len:]).mean()
+            seq_loss = (
+                mse(src_data, src_pred[..., :-pred_len]).mean()
+                + mse(src_true, src_pred[..., -pred_len:]).mean()
+                + mse(tgt_data, tgt_pred[..., :-pred_len]).mean()
+                + mse(tgt_true, tgt_pred[..., -pred_len:]).mean()
             )
-            tgt_seq_loss = (
-                mse(tgt_data, tgt_pred[:-pred_len]).mean()
-                + mse(tgt_true, tgt_pred[-pred_len:]).mean()
+            dom_loss = -(
+                (  # 0 for source domain
+                    bce(src_cls_q, torch.zeros_like(src_cls_q, device=device))
+                    + bce(src_cls_k, torch.zeros_like(src_cls_k, device=device))
+                ).mean()
+                + (  # 1 for target domain
+                    bce(tgt_cls_q, torch.ones_like(tgt_cls_q, device=device))
+                    + bce(tgt_cls_k, torch.ones_like(tgt_cls_k, device=device))
+                ).mean()
             )
-            seq_loss = src_seq_loss + tgt_seq_loss
-            ## domain classification error
-            src_dom_loss = -(
-                bce(src_cls_q, torch.zeros_like(src_cls_q))
-                + bce(src_cls_k, torch.zeros_like(src_cls_k))
-            ).mean()
-            tgt_dom_loss = -(
-                bce(tgt_cls_q, torch.ones_like(tgt_cls_q))
-                + bce(tgt_cls_k, torch.ones_like(tgt_cls_k))
-            ).mean()
-            dom_loss = src_dom_loss + tgt_dom_loss
             tot_loss = seq_loss - tradeoff * dom_loss
             train_seq_losses.append(seq_loss.item())
             train_dom_losses.append(dom_loss.item())
@@ -131,30 +111,21 @@ def train(
             dis_optim.step()
             att_optim.step()
 
-            # evaluation
-            norm_devn = calc_nd(tgt_true, tgt_pred)
-            train_metrics.append(norm_devn.item())
-
-        valid_metrics = []
-        for tgt_data, tgt_true in tqdm(tgt_validloader):
+        metrics = []
+        for tgt_data, tgt_true in tgt_validloader:
             tgt_data, tgt_true = tgt_data.to(device), tgt_true.to(device)
-            tgt_pred = tgt_generator(tgt_data)
-            norm_devn = calc_nd(tgt_true, tgt_pred)
-            valid_metrics.append(norm_devn.item())
+            tgt_pred, (tgt_query, tgt_key) = tgt_generator(tgt_data)
+            norm_devn = calc_nd(tgt_true, tgt_pred[..., -pred_len:])
+            metrics.append(norm_devn.item())
 
-        print(f"Epoch {epoch} /{num_epoch} ====================")
-        print(f"Valid metric: {sum(valid_metrics) / len(valid_metrics)}")
-        print(f"Train metric: {sum(train_metrics) / len(train_metrics)}")
-        print(f"Train loss: {sum(train_tot_losses) / len(train_tot_losses)}")
-        print(f"  Seq loss: {sum(train_seq_losses) / len(train_seq_losses)}")
-        print(f"  Dom loss: {sum(train_dom_losses) / len(train_dom_losses)}")
-
-
-def main(args):
-    train(**vars(args))
+        print(f"Epoch {epoch + 1} /{num_epoch} ====================")
+        print(
+            f"Metric: valid {sum(metrics) / len(metrics):.8f}         "
+            f"Loss: total {sum(train_tot_losses) / len(train_tot_losses):.8f} seq {sum(train_seq_losses) / len(train_seq_losses):.8f} dom {sum(train_dom_losses) / len(train_dom_losses):.8f}"
+        )
 
 
-if __name__ == "__main__":
+def main():
     import argparse
 
     parser = argparse.ArgumentParser()
@@ -164,7 +135,7 @@ if __name__ == "__main__":
     parser.add_argument("--kernel_size", type=int, default=(3, 5))
     parser.add_argument("--syn_type", type=str, default="coldstart")
     parser.add_argument("--syn_param", type=int, default=36)
-    parser.add_argument("--batch_size", type=int, default=int(2e3))
+    parser.add_argument("--batch_size", type=int, default=int(1e3))
     parser.add_argument("--num_epoch", type=int, default=200)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--tradeoff", type=float, default=1.0)
@@ -175,4 +146,8 @@ if __name__ == "__main__":
     else:
         args.hidden_dim = tuple(args.hidden_dim)
 
-    main(args)
+    train(**vars(args))
+
+
+if __name__ == "__main__":
+    main()

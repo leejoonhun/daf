@@ -23,21 +23,25 @@ class SequenceGenerator(nn.Module):
         self.enc = Encoder(feat_dim, hidden_dim, kernel_size)
         self.dec = Decoder(feat_dim, hidden_dim)
 
-    def forward(self, data: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, data: torch.Tensor
+    ) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         """Sequence Generator
 
         Args:
             data (torch.Tensor): input data with shape `(B, D, T)`, where `D = 1 + d`.
 
         Returns:
-            torch.Tensor: reconstructed & predicted results with shape `(B, D, T + t)`.
+            Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+                - reconstructed & predicted results with shape `(B, D, T + t)`.
+                - queries and keys with shape `(B, D, T)`.
         """
         for _ in range(self.pred_len):
             pattern, value = self.enc(data)
-            rep = self.attn(pattern, value)
+            rep, (query, key) = self.attn(pattern, value)
             pred = self.dec(rep)
-            data = torch.cat([data, pred[..., -1]], dim=-1)
-        return pred
+            data = torch.cat([data, pred[..., -1:]], dim=-1)
+        return pred, (query, key)
 
     def predict(self, data: torch.Tensor) -> torch.Tensor:
         return self.forward(data)[..., -self.pred_len :]
@@ -58,7 +62,9 @@ class SharedAttention(nn.Module):
             input_dim=feat_dim, output_dim=feat_dim, hidden_dim=hidden_dim
         )
 
-    def forward(self, pattern: torch.Tensor, value: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, pattern: torch.Tensor, value: torch.Tensor
+    ) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         """Shared Attention
 
         Args:
@@ -66,7 +72,9 @@ class SharedAttention(nn.Module):
             value (torch.Tensor): values with shape `(B, D, T)`.
 
         Returns:
-            torch.Tensor: representations with shape `(B, D, T + 1)`.
+            Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+                - representations with shape `(B, D, T + 1)`.
+                - queries and keys with shape `(B, D, T)`.
         """
         query, key = self.mlp_q(pattern), self.mlp_k(pattern)
         # interpolation mode
@@ -75,7 +83,7 @@ class SharedAttention(nn.Module):
         rep_ex = self.mlp_o(
             self.calc_attn(query, key, value, kernel_size=self.kernel_size)
         )
-        return torch.cat([rep_in, rep_ex], dim=-1)
+        return torch.cat([rep_in, rep_ex], dim=-1), (query, key)
 
     def calc_attn(
         self,
@@ -107,7 +115,7 @@ class SharedAttention(nn.Module):
         attn_logits = torch.exp(
             query.transpose(1, 2) @ key
             - (query.transpose(1, 2) @ key)
-            * torch.eye(query.shape[-1])
+            * torch.eye(query.shape[-1], device=query.device)
             / math.sqrt(query.shape[-1])
         )
         attn_scores = torch.softmax(attn_logits, dim=-1)
