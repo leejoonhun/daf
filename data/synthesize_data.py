@@ -27,7 +27,7 @@ def make_coldstart(
             + np.random.uniform(-3.0, 3.0)
             + np.random.normal(0, 0.2)
         )
-    with open(DATA_ROOT / "coldstart_source.pkl", "wb") as f:
+    with open(DATA_ROOT / "synthetic" / "coldstart_source.pkl", "wb") as f:
         pickle.dump(src_data, f)
 
     for i in range(tgt_diversity):
@@ -44,11 +44,13 @@ def make_coldstart(
                 + np.random.normal(0, 0.2)
             )
         with open(
-            DATA_ROOT / f"coldstart_target_train_{tgt_hist_lens[i]}.pkl", "wb"
+            DATA_ROOT / "synthetic" / f"coldstart_target_train_{tgt_hist_lens[i]}.pkl",
+            "wb",
         ) as f:
             pickle.dump(tgt_data[-data_num // 5 :], f)
         with open(
-            DATA_ROOT / f"coldstart_target_valid_{tgt_hist_lens[i]}.pkl", "wb"
+            DATA_ROOT / "synthetic" / f"coldstart_target_valid_{tgt_hist_lens[i]}.pkl",
+            "wb",
         ) as f:
             pickle.dump(tgt_data[: -data_num // 5], f)
 
@@ -73,7 +75,7 @@ def make_fewshot(
             + np.random.uniform(-3.0, 3.0)
             + np.random.normal(0, 0.2)
         )
-    with open(DATA_ROOT / "fewshot_source.pkl", "wb") as f:
+    with open(DATA_ROOT / "synthetic" / "fewshot_source.pkl", "wb") as f:
         pickle.dump(src_data, f)
 
     for i in range(tgt_diversity):
@@ -91,11 +93,13 @@ def make_fewshot(
                 + np.random.normal(0, 0.2)
             )
         with open(
-            DATA_ROOT / f"fewshot_target_train_{tgt_data_nums[i]}.pkl", "wb"
+            DATA_ROOT / "synthetic" / f"fewshot_target_train_{tgt_data_nums[i]}.pkl",
+            "wb",
         ) as f:
             pickle.dump(tgt_data[: -tgt_data_num // 5], f)
         with open(
-            DATA_ROOT / f"fewshot_target_valid_{tgt_data_nums[i]}.pkl", "wb"
+            DATA_ROOT / "synthetic" / f"fewshot_target_valid_{tgt_data_nums[i]}.pkl",
+            "wb",
         ) as f:
             pickle.dump(tgt_data[-tgt_data_num // 5 :], f)
 
