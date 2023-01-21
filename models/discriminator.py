@@ -26,8 +26,8 @@ class DomainDiscriminator(nn.Module):
             key (torch.Tensor): key with shape `(B, D, T + t)`.
 
         Returns:
-            torch.Tensor: binary classification result with shape`(B, 2, T + t)`
+            torch.Tensor: domain classification result with shape`(B, 2, T + t)`.
         """
-        cls_query = self.cls_q(query)
-        cls_key = self.cls_k(key)
-        return cls_query, cls_key
+        dom_query = self.cls_q(query)
+        dom_key = self.cls_k(key)
+        return dom_query, dom_key

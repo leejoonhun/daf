@@ -1,10 +1,10 @@
 import torch
 from torch import nn, optim
-from tqdm import tqdm
 
 from data import get_dataloaders
 from metric import calc_nd
 from models import DomainDiscriminator, SequenceGenerator, SharedAttention
+from utils import make_true_dom
 
 
 def train(
@@ -61,8 +61,8 @@ def train(
         model.to(device)
     for epoch in range(num_epoch):
         train_seq_losses, train_dom_losses, train_tot_losses = [], [], []
-        for (src_data, src_true), (tgt_data, tgt_true) in tqdm(
-            zip(src_trainloader, tgt_trainloader)
+        for (src_data, src_true), (tgt_data, tgt_true) in zip(
+            src_trainloader, tgt_trainloader
         ):
             src_data, src_true, tgt_data, tgt_true = (
                 src_data.to(device),
@@ -80,8 +80,9 @@ def train(
             tgt_pred, (tgt_query, tgt_key) = tgt_generator(tgt_data)
 
             # domain classification
-            src_cls_q, src_cls_k = dom_discriminator(src_query, src_key)
-            tgt_cls_q, tgt_cls_k = dom_discriminator(tgt_query, tgt_key)
+            src_dom_q, src_dom_k = dom_discriminator(src_query, src_key)
+            tgt_dom_q, tgt_dom_k = dom_discriminator(tgt_query, tgt_key)
+            src_dom, tgt_dom = make_true_dom(src_dom_q, tgt_dom_q)
 
             # loss calculation
             seq_loss = (
@@ -91,14 +92,8 @@ def train(
                 + mse(tgt_true, tgt_pred[..., -pred_len:]).mean()
             )
             dom_loss = -(
-                (  # 0 for source domain
-                    bce(src_cls_q, torch.zeros_like(src_cls_q, device=device))
-                    + bce(src_cls_k, torch.zeros_like(src_cls_k, device=device))
-                ).mean()
-                + (  # 1 for target domain
-                    bce(tgt_cls_q, torch.ones_like(tgt_cls_q, device=device))
-                    + bce(tgt_cls_k, torch.ones_like(tgt_cls_k, device=device))
-                ).mean()
+                (bce(src_dom_q, src_dom) + bce(src_dom_k, src_dom)).mean()
+                + (bce(tgt_dom_q, tgt_dom) + bce(tgt_dom_k, tgt_dom)).mean()
             )
             tot_loss = seq_loss - tradeoff * dom_loss
             train_seq_losses.append(seq_loss.item())
@@ -118,15 +113,21 @@ def train(
             norm_devn = calc_nd(tgt_true, tgt_pred[..., -pred_len:])
             metrics.append(norm_devn.item())
 
-        print(f"Epoch {epoch + 1} /{num_epoch} ====================")
+        print(f"Epoch {epoch + 1:04} /{num_epoch} {'=' * 30}")
+        print(f"Metric: valid {sum(metrics) / len(metrics):.8f}")
         print(
-            f"Metric: valid {sum(metrics) / len(metrics):.8f}         "
-            f"Loss: total {sum(train_tot_losses) / len(train_tot_losses):.8f} seq {sum(train_seq_losses) / len(train_seq_losses):.8f} dom {sum(train_dom_losses) / len(train_dom_losses):.8f}"
+            "Loss:"
+            f" total {sum(train_tot_losses) / len(train_tot_losses):.4f}"
+            f" seq {sum(train_seq_losses) / len(train_seq_losses):.4f}"
+            f" dom {sum(train_dom_losses) / len(train_dom_losses):.4f}"
         )
 
 
 def main():
     import argparse
+    import os
+
+    os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--feat_dim", type=int, default=1)
@@ -136,7 +137,7 @@ def main():
     parser.add_argument("--syn_type", type=str, default="coldstart")
     parser.add_argument("--syn_param", type=int, default=36)
     parser.add_argument("--batch_size", type=int, default=int(1e3))
-    parser.add_argument("--num_epoch", type=int, default=200)
+    parser.add_argument("--num_epoch", type=int, default=int(1e3))
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--tradeoff", type=float, default=1.0)
     args = parser.parse_args()
