@@ -18,6 +18,7 @@ def train(
     tradeoff,
     num_epoch,
     lr,
+    seed,
 ):
     print(f"Training with {syn_type}-{syn_param} data")
     print(
@@ -28,6 +29,7 @@ def train(
 
     # configuration
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    torch.manual_seed(seed)
 
     # data
     src_trainloader, tgt_trainloader, tgt_validloader = get_dataloaders(
@@ -60,7 +62,7 @@ def train(
         model.train()
         model.to(device)
     for epoch in range(num_epoch):
-        train_seq_losses, train_dom_losses, train_tot_losses = [], [], []
+        seq_losses, dom_losses, tot_losses = [], [], []
         for (src_data, src_true), (tgt_data, tgt_true) in zip(
             src_trainloader, tgt_trainloader
         ):
@@ -96,9 +98,9 @@ def train(
                 + (bce(tgt_dom_q, tgt_dom) + bce(tgt_dom_k, tgt_dom)).mean()
             )
             tot_loss = seq_loss - tradeoff * dom_loss
-            train_seq_losses.append(seq_loss.item())
-            train_dom_losses.append(dom_loss.item())
-            train_tot_losses.append(tot_loss.item())
+            seq_losses.append(seq_loss.item())
+            dom_losses.append(dom_loss.item())
+            tot_losses.append(tot_loss.item())
 
             # backpropagation
             tot_loss.backward()
@@ -113,13 +115,13 @@ def train(
             norm_devn = calc_nd(tgt_true, tgt_pred[..., -pred_len:])
             metrics.append(norm_devn.item())
 
-        print(f"Epoch {epoch + 1:04} /{num_epoch} {'=' * 30}")
-        print(f"Metric: valid {sum(metrics) / len(metrics):.8f}")
+        print(f"Epoch {epoch + 1:4d} /{num_epoch} {'=' * 30}")
+        print(f"Metric: {sum(metrics) / len(metrics):.8f}")
         print(
             "Loss:"
-            f" total {sum(train_tot_losses) / len(train_tot_losses):.4f}"
-            f" seq {sum(train_seq_losses) / len(train_seq_losses):.4f}"
-            f" dom {sum(train_dom_losses) / len(train_dom_losses):.4f}"
+            f" total {sum(tot_losses) / len(tot_losses):.4f}"
+            f" seq {sum(seq_losses) / len(seq_losses):.4f}"
+            f" dom {sum(dom_losses) / len(dom_losses):.4f}"
         )
 
 
@@ -140,6 +142,7 @@ def main():
     parser.add_argument("--num_epoch", type=int, default=int(1e3))
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--tradeoff", type=float, default=1.0)
+    parser.add_argument("--seed", type=int, default=718)
     args = parser.parse_args()
 
     if len(args.hidden_dim) == 1:
