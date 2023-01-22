@@ -1,3 +1,5 @@
+import os
+
 import torch
 from torch import nn, optim
 
@@ -14,8 +16,8 @@ def train(
     kernel_size,
     syn_type,
     syn_param,
-    batch_size,
     tradeoff,
+    batch_size,
     num_epoch,
     lr,
     seed,
@@ -30,6 +32,7 @@ def train(
     # configuration
     device = "cuda" if torch.cuda.is_available() else "cpu"
     torch.manual_seed(seed)
+    os.makedirs(ckpt_dir := f"checkpoints/{syn_type}_{syn_param}", exist_ok=True)
 
     # data
     src_trainloader, tgt_trainloader, tgt_validloader = get_dataloaders(
@@ -61,6 +64,7 @@ def train(
     for model in [shr_attention, src_generator, tgt_generator, dom_discriminator]:
         model.train()
         model.to(device)
+    best_metric, best_epoch = torch.inf, None
     for epoch in range(num_epoch):
         seq_losses, dom_losses, tot_losses = [], [], []
         for (src_data, src_true), (tgt_data, tgt_true) in zip(
@@ -115,6 +119,18 @@ def train(
             norm_devn = calc_nd(tgt_true, tgt_pred[..., -pred_len:])
             metrics.append(norm_devn.item())
 
+        if (sum(metrics) / len(metrics)) < best_metric:
+            best_metric, best_epoch = sum(metrics) / len(metrics), epoch + 1
+            torch.save(
+                {
+                    "shr_attention": shr_attention.state_dict(),
+                    "src_generator": src_generator.state_dict(),
+                    "tgt_generator": tgt_generator.state_dict(),
+                    "dom_discriminator": dom_discriminator.state_dict(),
+                },
+                f"{ckpt_dir}/epoch{best_epoch}.pt",
+            )
+
         print(f"Epoch {epoch + 1:4d} /{num_epoch} {'=' * 30}")
         print(f"Metric: {sum(metrics) / len(metrics):.8f}")
         print(
@@ -124,24 +140,50 @@ def train(
             f" dom {sum(dom_losses) / len(dom_losses):.4f}"
         )
 
+    print(f"Best metric: {best_metric:.8f} at epoch {best_epoch}")
+    os.system(f"cp {ckpt_dir}/epoch{best_epoch}.pt {ckpt_dir}/best.pt")
+
 
 def main():
     import argparse
-    import os
-
-    os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--feat_dim", type=int, default=1)
-    parser.add_argument("--pred_len", type=int, default=18)
-    parser.add_argument("--hidden_dim", nargs="+", type=int, default=(64, 64))
-    parser.add_argument("--kernel_size", type=int, default=(3, 5))
-    parser.add_argument("--syn_type", type=str, default="coldstart")
-    parser.add_argument("--syn_param", type=int, default=36)
+    parser.add_argument("--feat_dim", type=int, default=1, help="dimension of features")
+    parser.add_argument("--pred_len", type=int, default=18, help="prediction length")
+    parser.add_argument(
+        "--hidden_dim",
+        nargs="+",
+        type=int,
+        default=(64, 64),
+        help="dimension of hidden layers in all MLP layers",
+    )
+    parser.add_argument(
+        "--kernel_size",
+        type=int,
+        default=(3, 5),
+        help="kernel size of convolutional layers",
+    )
+    parser.add_argument(
+        "--syn_type",
+        type=str,
+        default="coldstart",
+        help="type of synthetic data (coldstart or fewshot)",
+    )
+    parser.add_argument(
+        "--syn_param",
+        type=int,
+        default=36,
+        help="parameter of synthesis (tgt_hist_lens for make_coldstart, tgt_data_nums for make_fewshot)",
+    )
+    parser.add_argument(
+        "--tradeoff",
+        type=float,
+        default=1.0,
+        help="tradeoff parameter of loss calculation",
+    )
     parser.add_argument("--batch_size", type=int, default=int(1e3))
     parser.add_argument("--num_epoch", type=int, default=int(1e3))
     parser.add_argument("--lr", type=float, default=1e-3)
-    parser.add_argument("--tradeoff", type=float, default=1.0)
     parser.add_argument("--seed", type=int, default=718)
     args = parser.parse_args()
 
@@ -149,6 +191,8 @@ def main():
         args.hidden_dim = args.hidden_dim[0]
     else:
         args.hidden_dim = tuple(args.hidden_dim)
+
+    os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
     train(**vars(args))
 

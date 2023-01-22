@@ -1,6 +1,10 @@
 # Temporary files
 tmp*
 
+# Data and results
+*.pkl
+*.pt
+
 # OS-related
 *.deb
 .DS_Store

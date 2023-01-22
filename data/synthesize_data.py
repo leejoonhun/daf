@@ -8,12 +8,14 @@ DATA_ROOT = Path(__file__).parent.resolve()
 
 
 def make_coldstart(
+    tgt_hist_lens: Union[Tuple[int], int],
     data_num: Union[int, float] = 5e3,
     src_hist_len: int = 144,
-    tgt_hist_lens: Tuple[int] = [36, 45, 54],
     pred_len: int = 18,
 ):
     data_num = int(data_num)
+    if isinstance(tgt_hist_lens, int):
+        tgt_hist_lens = (tgt_hist_lens,)
     tgt_diversity = len(tgt_hist_lens)
     src_data = []
     for _ in range(data_num):
@@ -47,21 +49,23 @@ def make_coldstart(
             DATA_ROOT / "synthetic" / f"coldstart_target_train_{tgt_hist_lens[i]}.pkl",
             "wb",
         ) as f:
-            pickle.dump(tgt_data[-data_num // 5 :], f)
+            pickle.dump(tgt_data[: -data_num // 5], f)
         with open(
             DATA_ROOT / "synthetic" / f"coldstart_target_valid_{tgt_hist_lens[i]}.pkl",
             "wb",
         ) as f:
-            pickle.dump(tgt_data[: -data_num // 5], f)
+            pickle.dump(tgt_data[-data_num // 5 :], f)
 
 
 def make_fewshot(
+    tgt_data_nums: Union[Tuple[int], int],
     src_data_num: Union[int, float] = 5e3,
-    tgt_data_nums: Tuple[int] = [20, 50, 100],
     hist_len: int = 144,
     pred_len: int = 18,
 ):
     src_data_num = int(src_data_num)
+    if isinstance(tgt_data_nums, int):
+        tgt_data_nums = (tgt_data_nums,)
     tgt_diversity = len(tgt_data_nums)
     src_data = []
     for _ in range(src_data_num):
@@ -104,6 +108,13 @@ def make_fewshot(
             pickle.dump(tgt_data[-tgt_data_num // 5 :], f)
 
 
+MAKE_DATA = {"coldstart": make_coldstart, "fewshot": make_fewshot}
+
+
+def main():
+    make_coldstart(tgt_hist_lens=[36, 45, 54])
+    make_fewshot(tgt_data_nums=[20, 50, 100])
+
+
 if __name__ == "__main__":
-    for make in [make_coldstart, make_fewshot]:
-        make()
+    main()
