@@ -1,0 +1,7 @@
+black
+isort
+numpy
+ipykernel
+matplotlib
+--find-links https://download.pytorch.org/whl/torch_stable.html
+torch==1.13.1+cu116
