@@ -1,5 +1,6 @@
 import pickle
 from os import path as osp
+from pathlib import Path
 from typing import Tuple
 
 import torch
@@ -9,7 +10,7 @@ from .synthesize_data import MAKE_DATA
 
 
 class SyntheticDataset(dt.Dataset):
-    def __init__(self, path: str, feat_dim: int, pred_len: int) -> None:
+    def __init__(self, path: Path, feat_dim: int, pred_len: int) -> None:
         super().__init__()
         self.feat_dim = feat_dim
         self.pred_len = pred_len
