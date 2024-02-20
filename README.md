@@ -1,3 +1,3 @@
 # Domain Adaptation Forecaster
 
-Unofficial PyTorch Implementation of [Domain Adaptation for Time Series Forecasting via Attention Sharing](https://arxiv.org/abs/2102.06828)
+Unofficial PyTorch Implementation of [Domain Adaptation for Time Series Forecasting via Attention Sharing](https://proceedings.mlr.press/v162/jin22d.html)
